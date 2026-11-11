@@ -109,12 +109,12 @@ npm run typecheck
 ## Phase 1 Scope
 
 Phase 1 establishes:
-- ✅ Monorepo foundation
-- ✅ Shared TypeScript types and Zod validation schemas
-- ✅ SQLite database initialization
-- ✅ Expo Router application shell
-- ✅ Technical documentation (5 documents)
-- ✅ Unit tests for schemas
+- Monorepo foundation
+- Shared TypeScript types and Zod validation schemas
+- SQLite database initialization
+- Expo Router application shell
+- Technical documentation (5 documents)
+- Unit tests for schemas
 
 **Out of scope (future phases):** Actual BLE communication, authentication, maps, backend APIs, cloud sync.
 

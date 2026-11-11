@@ -1,56 +1,125 @@
-# Welcome to your Expo app 👋
+# SYNC – Offline-First Emergency Coordination System
 
-This is an [Expo](https://expo.dev) project created with [`create-expo-app`](https://www.npmjs.com/package/create-expo-app).
+SYNC is an **offline-first, distributed emergency reporting and resource coordination system** designed to work without centralized internet connectivity. Nearby Android devices exchange emergency information directly over Bluetooth Low Energy (BLE) using a store-carry-forward mesh approach.
 
-## Get started
+---
 
-1. Install dependencies
+## Monorepo Structure
 
-   ```bash
-   npm install
-   ```
-
-2. Start the app
-
-   ```bash
-   npx expo start
-   ```
-
-In the output, you'll find options to open the app in a
-
-- [development build](https://docs.expo.dev/develop/development-builds/introduction/)
-- [Android emulator](https://docs.expo.dev/workflow/android-studio-emulator/)
-- [iOS simulator](https://docs.expo.dev/workflow/ios-simulator/)
-- [Expo Go](https://expo.dev/go), a limited sandbox for trying out app development with Expo
-
-You can start developing by editing the files inside the **src/app** directory. This project uses [file-based routing](https://docs.expo.dev/router/introduction).
-
-## Get a fresh project
-
-When you're ready, run:
-
-```bash
-npm run reset-project
+```
+SYNC/
+├── apps/
+│   ├── mobile/          → Expo (React Native) Android application
+│   └── backend/         → Reserved for future NestJS implementation
+├── packages/
+│   └── shared/          → Shared TypeScript types, Zod schemas, constants
+├── simulation/          → Reserved for future BLE/network simulation
+├── docs/                → Architecture and protocol documentation
+├── package.json         → Workspace root (npm workspaces)
+└── README.md
 ```
 
-This command will move the starter code to the **example** directory and create a blank **src/app** directory where you can start developing.
+---
 
-### Other setup steps
+## Prerequisites
 
-- To set up ESLint for linting, run `npx expo lint`, or follow our guide on ["Using ESLint and Prettier"](https://docs.expo.dev/guides/using-eslint/)
-- If you'd like to set up unit testing, follow our guide on ["Unit Testing with Jest"](https://docs.expo.dev/develop/unit-testing/)
-- Learn more about the TypeScript setup in this template in our guide on ["Using TypeScript"](https://docs.expo.dev/guides/typescript/)
+| Tool        | Version       |
+|-------------|---------------|
+| Node.js     | ≥ 20          |
+| npm         | ≥ 10          |
+| Expo CLI    | Installed via `npx expo` |
+| Android SDK | For Android builds |
 
-## Learn more
+---
 
-To learn more about developing your project with Expo, look at the following resources:
+## Installation
 
-- [Expo documentation](https://docs.expo.dev/): Learn fundamentals, or go into advanced topics with our [guides](https://docs.expo.dev/guides).
-- [Learn Expo tutorial](https://docs.expo.dev/tutorial/introduction/): Follow a step-by-step tutorial where you'll create a project that runs on Android, iOS, and the web.
+```bash
+# Clone the repository
+git clone <repo-url>
+cd SYNC
 
-## Join the community
+# Install all workspace dependencies from the monorepo root
+npm install
 
-Join our community of developers creating universal apps.
+# Build the shared package (must be done before running mobile)
+npm run shared:build
+```
 
-- [Expo on GitHub](https://github.com/expo/expo): View our open source platform and contribute.
-- [Discord community](https://chat.expo.dev): Chat with Expo users and ask questions.
+---
+
+## Running the Mobile Application
+
+```bash
+# Start the Expo development server
+npm run mobile
+
+# Open on a connected Android device or emulator
+npm run mobile:android
+
+# Open on iOS simulator (macOS only)
+npm run mobile:ios
+```
+
+---
+
+## Running Tests
+
+```bash
+# Run shared package unit tests (Zod schema + type validation)
+npm run shared:test
+```
+
+---
+
+## Linting & Type Checking
+
+```bash
+# Lint the mobile app
+npm run lint
+
+# Type-check all packages
+npm run typecheck
+```
+
+---
+
+## Package Manager Decision
+
+**npm workspaces** was chosen because:
+- The project already uses npm (from initial Expo scaffold).
+- npm workspaces (since npm 7) provide first-class monorepo support with zero extra tooling.
+- Avoids the complexity of Turborepo, Nx, or Lerna for a Phase 1 foundation.
+- Simple `--workspace` flag delegates commands to individual packages.
+
+---
+
+## Documentation
+
+| Document | Description |
+|----------|-------------|
+| [`docs/system-overview.md`](docs/system-overview.md) | Problem statement, objectives, and requirements |
+| [`docs/architecture.md`](docs/architecture.md) | System and app architecture |
+| [`docs/database-design.md`](docs/database-design.md) | SQLite schema and persistence strategy |
+| [`docs/data-models.md`](docs/data-models.md) | TypeScript interfaces and Zod schemas |
+| [`docs/ble-communication-protocol.md`](docs/ble-communication-protocol.md) | BLE protocol design |
+
+---
+
+## Phase 1 Scope
+
+Phase 1 establishes:
+- ✅ Monorepo foundation
+- ✅ Shared TypeScript types and Zod validation schemas
+- ✅ SQLite database initialization
+- ✅ Expo Router application shell
+- ✅ Technical documentation (5 documents)
+- ✅ Unit tests for schemas
+
+**Out of scope (future phases):** Actual BLE communication, authentication, maps, backend APIs, cloud sync.
+
+---
+
+## License
+
+MIT

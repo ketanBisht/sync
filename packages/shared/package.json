@@ -1,0 +1,25 @@
+{
+  "name": "@sync/shared",
+  "version": "1.0.0",
+  "description": "Shared TypeScript types, Zod schemas, and constants for the SYNC system",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "zod": "^3.24.0"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.14",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.3.4",
+    "typescript": "~6.0.3"
+  }
+}
+

@@ -1,0 +1,17 @@
+# Dependencies
+node_modules/
+.expo/
+dist/
+web-build/
+.DS_Store
+
+# Git
+.git/
+
+# Generated native directories
+apps/mobile/android/
+apps/mobile/ios/
+modules/sync-ble/android/.gradle/
+
+# DO NOT ignore packages/shared/dist because EAS needs it to bundle the JS
+!packages/shared/dist/

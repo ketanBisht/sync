@@ -106,17 +106,57 @@ npm run typecheck
 
 ---
 
-## Phase 1 Scope
+## Current Project Status: Phase 2 Complete
 
-Phase 1 establishes:
-- Monorepo foundation
-- Shared TypeScript types and Zod validation schemas
-- SQLite database initialization
-- Expo Router application shell
-- Technical documentation (5 documents)
-- Unit tests for schemas
+- ✅ **Phase 1**: Monorepo foundation, data models, Zod validation schemas, SQLite persistence schema, 5 technical documents, and 42 unit tests.
+- ✅ **Phase 2**: Native Kotlin Android BLE Communication Engine (`modules/sync-ble`), GATT server/client managers, MTU negotiation, sequential chunk framing/reassembly (`bleFramer`), transactional persistence with deduplication, ACK handshakes, 3 testing screens (Discovery, Messaging, Diagnostics), and 55 unit tests.
 
-**Out of scope (future phases):** Actual BLE communication, authentication, maps, backend APIs, cloud sync.
+---
+
+## Testing on Two Physical Android Devices (Phase 2 Prototype)
+
+To test offline BLE communication between two physical Android devices:
+
+### 1. Build and Install Development Build
+Ensure Android Studio / Android SDK is configured with ADB connected:
+```bash
+# In apps/mobile, generate native project and install on connected device:
+cd apps/mobile
+npx expo run:android
+```
+Install the resulting build onto **both Device A and Device B**.
+
+### 2. Configure Pure Offline Environment
+- Put **both Device A and Device B into Flight Mode** (Airplane Mode).
+- Re-enable **Bluetooth** only on both devices.
+- Verify Wi-Fi and Mobile Data are **completely disabled**.
+
+### 3. Step-by-Step Test Procedure
+1. **Device A (Peripheral)**:
+   - Open SYNC app -> Navigate to **Discovery** tab.
+   - Tap **"Start Advertising"**.
+   - Note the Node UUID displayed on screen.
+2. **Device B (Central)**:
+   - Open SYNC app -> Navigate to **Discovery** tab.
+   - Tap **"Start Scanning"**.
+   - Within 2–5 seconds, Device A will appear in the **Discovered SYNC Peers** list with RSSI and Node UUID.
+   - Tap **"Connect"** next to Device A.
+   - Both devices will transition to **CONNECTED** status, negotiate MTU (up to 512 bytes), and discover characteristics.
+3. **Message Dispatch & Persistence (B → A)**:
+   - On Device B, switch to the **Messaging** tab.
+   - Device A is auto-selected as target peer.
+   - Select preset **"SOS Medical"** or type a message, then tap **"Dispatch Emergency Message via BLE"**.
+   - Device B chunks payload, writes sequentially to Device A, and awaits ACK.
+   - Device A reassembles chunks, verifies against Zod schema, checks for duplicates, and commits to SQLite.
+   - Device A sends back an ACK receipt. Device B displays **"Message transferred and acknowledged by peer!"**.
+4. **Reverse Transfer (A → B)**:
+   - Repeat the messaging flow from Device A to Device B.
+5. **Duplicate Rejection Verification**:
+   - Resend the exact same message.
+   - Receiving device detects existing `message_id`, increments **"Duplicates Rejected"** counter on Diagnostics tab, and does not insert duplicate.
+6. **Persistence Across Restart**:
+   - Force-close the app on Device A and reopen it.
+   - All received emergency messages remain intact in SQLite.
 
 ---
 

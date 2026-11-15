@@ -6,37 +6,41 @@ import { useColorScheme, View, Text, StyleSheet } from 'react-native';
 import { AnimatedSplashOverlay } from '@/components/animated-icon';
 import AppTabs from '@/components/app-tabs';
 import { getDatabase } from '@/db/database';
+import { bleService } from '@/services/bleService';
 
 SplashScreen.preventAutoHideAsync();
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
-  const [dbReady, setDbReady] = useState(false);
-  const [dbError, setDbError] = useState<string | null>(null);
+  const [ready, setReady] = useState(false);
+  const [initError, setInitError] = useState<string | null>(null);
 
   useEffect(() => {
-    getDatabase()
-      .then(() => {
-        setDbReady(true);
-      })
-      .catch((err: unknown) => {
+    async function bootstrap() {
+      try {
+        await getDatabase();
+        await bleService.init();
+        setReady(true);
+      } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
-        console.error('[SYNC] Database initialization failed:', message);
-        setDbError(message);
-      });
+        console.error('[SYNC] Initialization failed:', message);
+        setInitError(message);
+      }
+    }
+    bootstrap();
   }, []);
 
-  if (dbError) {
+  if (initError) {
     return (
       <View style={styles.errorContainer}>
-        <Text style={styles.errorTitle}>Database Error</Text>
-        <Text style={styles.errorMessage}>{dbError}</Text>
+        <Text style={styles.errorTitle}>Initialization Error</Text>
+        <Text style={styles.errorMessage}>{initError}</Text>
       </View>
     );
   }
 
-  if (!dbReady) {
-    // Splash screen is still visible while db initializes
+  if (!ready) {
+    // Splash screen is still visible while db & ble initialize
     return null;
   }
 

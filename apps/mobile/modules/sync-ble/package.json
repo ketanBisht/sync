@@ -1,0 +1,7 @@
+{
+  "name": "sync-ble",
+  "version": "1.0.0",
+  "description": "Native Android BLE communication engine for Project SYNC",
+  "main": "index.ts",
+  "types": "index.ts"
+}

@@ -7,4 +7,5 @@
 
 export { getDatabase, closeDatabase } from './database';
 export { ALL_SCHEMA_STATEMENTS } from './schema';
-
+export { deviceRepository, DeviceRepository } from './repositories/deviceRepository';
+export { messageRepository, MessageRepository, type SaveIncomingResult } from './repositories/messageRepository';

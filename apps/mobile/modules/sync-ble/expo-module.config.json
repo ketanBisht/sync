@@ -1,0 +1,8 @@
+{
+  "name": "sync-ble",
+  "platforms": ["android"],
+  "android": {
+    "package": "dev.sync.ble",
+    "modules": ["dev.sync.ble.SyncBleModule"]
+  }
+}

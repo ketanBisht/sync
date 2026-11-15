@@ -1,9 +1,9 @@
 # SYNC – BLE Communication Protocol
 
-> **Status: Preliminary Design — Phase 1**
-> This document defines the intended BLE communication architecture for Phase 2 implementation.
-> No BLE code exists yet. All UUIDs, payload formats, and sequence diagrams are design proposals
-> and should be reviewed before implementation.
+> **Status: Phase 2 Implemented**
+> The core BLE communication engine is implemented in Kotlin via the native module `modules/sync-ble`
+> and TypeScript service `apps/mobile/src/services/bleService.ts`.
+> Tested with unit tests for framing, chunking, reassembly, and deduplication.
 
 ---
 
@@ -125,30 +125,33 @@ The peripheral computes the difference: messages it has that the central lacks, 
 
 ---
 
-## 5. Message Transfer
+## 5. Message Transfer & Framing
 
-Messages larger than `MAX_BLE_PAYLOAD_BYTES` (500 bytes) are chunked:
+Messages are split into structured chunk frames based on negotiated MTU (typically 380 bytes per chunk with MTU 512):
 
 ```json
 {
-  "messageId": "uuid",
-  "chunkIndex": 0,
-  "totalChunks": 3,
-  "data": "<base64-encoded-chunk>"
+  "v": 1,
+  "tid": "8-char-transfer-id",
+  "mid": "message-uuid",
+  "idx": 0,
+  "total": 3,
+  "data": "<json-chunk-slice>"
 }
 ```
 
-Each chunk is written to `MESSAGE_TRANSFER`. The peripheral reassembles chunks and ACKs the complete message once all chunks are received.
+- `v`: Protocol version (integer, must equal `PROTOCOL_VERSION = 1`).
+- `tid`: Transfer identifier string, grouping all chunks of a single transmission.
+- `mid`: Message UUID matching the embedded message record.
+- `idx`: 0-based sequence number (`0 <= idx < total`).
+- `total`: Total chunk count.
+- `data`: Serialized JSON payload slice.
 
-**ACK payload:**
-```json
-{ "messageId": "uuid", "status": "ok" }
-```
+**Sequential Flow-Controlled Write:**
+Chunks are written sequentially to `MESSAGE_TRANSFER` using write-with-response. Each write awaits Android's `onCharacteristicWrite` callback before dispatching the next chunk. This prevents buffer overflows and dropped packets over BLE.
 
-**NACK payload (with error reason):**
-```json
-{ "messageId": "uuid", "status": "error", "reason": "checksum_mismatch" }
-```
+**Reassembly:**
+The receiving device maintains an in-memory buffer (`MessageReassembler`) indexed by `tid`. When all `total` chunks arrive, they are concatenated in sequence, parsed as JSON, and passed to `messageRepository.saveIncomingMessage()` for validation and SQLite persistence. Transfers inactive for more than 30 seconds are timed out and discarded.
 
 ---
 

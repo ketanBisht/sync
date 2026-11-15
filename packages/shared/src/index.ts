@@ -60,3 +60,11 @@ export {
   PROTOCOL_VERSION,
 } from './constants/protocol';
 
+// --- Utilities ---
+export {
+  createFrames,
+  isValidChunkFrame,
+  MessageReassembler,
+  type BleChunkFrame,
+} from './utils/bleFramer';
+

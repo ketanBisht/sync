@@ -4,3 +4,10 @@
 
 expo-env.d.ts
 # @end expo-cli
+
+# Generated native directories (Continuous Native Generation — do not commit)
+android/
+ios/
+
+# Gradle caches inside local modules
+modules/sync-ble/android/.gradle/

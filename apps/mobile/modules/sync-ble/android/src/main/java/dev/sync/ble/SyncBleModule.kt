@@ -7,6 +7,7 @@ import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
 import androidx.core.content.ContextCompat
+import expo.modules.kotlin.functions.Coroutine
 import expo.modules.kotlin.modules.Module
 import expo.modules.kotlin.modules.ModuleDefinition
 import kotlinx.coroutines.CoroutineScope
@@ -215,12 +216,12 @@ class SyncBleModule : Module() {
             clientManager?.disconnect(deviceAddress)
         }
 
-        AsyncFunction("writeChunk") { deviceAddress: String, chunkJson: String ->
+        AsyncFunction("writeChunk") Coroutine { deviceAddress: String, chunkJson: String ->
             ensureManagersInitialized()
             clientManager?.writeChunk(deviceAddress, chunkJson) ?: false
         }
 
-        AsyncFunction("writeReceipt") { deviceAddress: String, receiptJson: String ->
+        AsyncFunction("writeReceipt") Coroutine { deviceAddress: String, receiptJson: String ->
             ensureManagersInitialized()
             clientManager?.writeReceipt(deviceAddress, receiptJson) ?: false
         }

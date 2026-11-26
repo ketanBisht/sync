@@ -521,6 +521,17 @@ export class BleService {
     this.notifyListeners();
   }
 
+  /**
+   * Updates the local device's callsign / display name and persists it to SQLite.
+   */
+  public async updateLocalDeviceName(newName: string): Promise<void> {
+    if (!this.localDevice) return;
+    this.localDevice = { ...this.localDevice, deviceName: newName };
+    await deviceRepository.updateDeviceName(this.localDevice.deviceId, newName);
+    this.addLog('info', `Callsign updated to: ${newName}`);
+    this.notifyListeners();
+  }
+
   public connect(address: string): boolean {
     this.lastError = null;
     this.addLog('info', `Connecting to ${address}...`);

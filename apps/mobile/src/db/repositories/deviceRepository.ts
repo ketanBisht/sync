@@ -83,6 +83,18 @@ export class DeviceRepository {
   }
 
   /**
+   * Updates the display name / callsign of the local device.
+   */
+  async updateDeviceName(deviceId: string, newName: string): Promise<void> {
+    const db = await getDatabase();
+    const now = new Date().toISOString();
+    await db.runAsync(
+      `UPDATE devices SET device_name = ?, updated_at = ? WHERE device_id = ?`,
+      [newName, now, deviceId]
+    );
+  }
+
+  /**
    * Returns list of all known peer devices (excluding local marker).
    */
   async getKnownPeers(): Promise<Device[]> {

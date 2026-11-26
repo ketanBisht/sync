@@ -51,7 +51,7 @@ export default function DiagnosticsScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>BLE Diagnostics</Text>
+          <Text style={[styles.title, { color: colors.text }]}>SYNC Diagnostics</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
             Real-time Metrics, Event Logs & SQLite Verification
           </Text>

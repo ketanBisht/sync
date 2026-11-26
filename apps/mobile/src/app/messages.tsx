@@ -105,9 +105,9 @@ export default function MessagingScreen() {
     <SafeAreaView style={[styles.container, { backgroundColor: colors.background }]}>
       <ScrollView contentContainerStyle={styles.scrollContent}>
         <View style={styles.header}>
-          <Text style={[styles.title, { color: colors.text }]}>Emergency Messaging</Text>
+          <Text style={[styles.title, { color: colors.text }]}>SYNC Messages</Text>
           <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-            Direct Device-to-Device BLE Transfer & Persistence
+            Offline BLE · Device-to-Device
           </Text>
         </View>
 

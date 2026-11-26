@@ -1,3 +1,4 @@
+import { PermissionsAndroid, Platform } from 'react-native';
 import {
   Message,
   MessageReceipt,
@@ -60,6 +61,7 @@ export class BleService {
   private isScanning = false;
   private permissions: BlePermissionsStatus = {};
   private bluetoothEnabled = false;
+  private lastError: string | null = null;
 
   private discoveredDevices = new Map<string, BleDiscoveredDevice>();
   private connectedPeers = new Map<string, PeerConnectionInfo>();
@@ -345,10 +347,18 @@ export class BleService {
 
     this.addLog('info', `Sending message ${messageId.substring(0, 8)}... (${frames.length} chunks, MTU ${mtu})`);
 
-    // 4. Transmit all chunks sequentially
+    // 4. Transmit all chunks sequentially (Client writes, Server notifies)
     for (let i = 0; i < frames.length; i++) {
       const frameJson = JSON.stringify(frames[i]);
-      const writeOk = await SyncBle.writeChunk(recipientAddress, frameJson);
+      let writeOk = false;
+      if (peerInfo.role === 'server') {
+        writeOk = SyncBle.sendChunkNotification(recipientAddress, frameJson);
+        if (writeOk && i < frames.length - 1) {
+          await new Promise((r) => setTimeout(r, 35));
+        }
+      } else {
+        writeOk = await SyncBle.writeChunk(recipientAddress, frameJson);
+      }
       if (!writeOk) {
         this.diagnostics.failedCount++;
         await messageRepository.updateMessageStatus(messageId, 'failed');
@@ -385,16 +395,89 @@ export class BleService {
     });
   }
 
-  // --- Controls ---
+  // --- Permissions & Controls ---
 
-  public startAdvertising(): boolean {
-    if (!this.localDevice) return false;
+  public hasRequiredPermissions(): boolean {
+    if (Platform.OS !== 'android') return true;
+    const apiLevel = typeof Platform.Version === 'number' ? Platform.Version : parseInt(String(Platform.Version), 10);
+    if (apiLevel >= 31) {
+      return Boolean(
+        this.permissions.bluetoothScan &&
+        this.permissions.bluetoothAdvertise &&
+        this.permissions.bluetoothConnect
+      );
+    }
+    return Boolean(this.permissions.locationFine);
+  }
+
+  public async requestPermissions(): Promise<boolean> {
+    if (Platform.OS !== 'android') return true;
+    try {
+      const apiLevel = typeof Platform.Version === 'number' ? Platform.Version : parseInt(String(Platform.Version), 10);
+      const perms = apiLevel >= 31
+        ? [
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_ADVERTISE,
+            PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+            PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          ]
+        : [PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION];
+
+      const results = await PermissionsAndroid.requestMultiple(perms);
+      this.permissions = SyncBle.getPermissionsStatus();
+      this.bluetoothEnabled = SyncBle.isBluetoothEnabled();
+
+      const allGranted = perms.every(
+        (p) => results[p] === PermissionsAndroid.RESULTS.GRANTED
+      );
+
+      if (!allGranted) {
+        this.lastError = 'Bluetooth permissions are required. Please grant Nearby Devices / Location permissions.';
+        this.addLog('warn', this.lastError);
+      } else {
+        this.lastError = null;
+        this.addLog('info', 'All required Bluetooth permissions granted');
+      }
+      this.notifyListeners();
+      return this.hasRequiredPermissions();
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      this.lastError = `Permission request failed: ${msg}`;
+      this.addLog('error', this.lastError);
+      this.notifyListeners();
+      return false;
+    }
+  }
+
+  public async startAdvertising(): Promise<boolean> {
+    if (!this.localDevice) {
+      this.lastError = 'Local device identity not ready yet';
+      this.notifyListeners();
+      return false;
+    }
+
+    this.refreshBluetoothStatus();
+    if (!this.hasRequiredPermissions()) {
+      const granted = await this.requestPermissions();
+      if (!granted) return false;
+    }
+
+    if (!this.bluetoothEnabled) {
+      this.lastError = 'Bluetooth is turned OFF. Please enable Bluetooth in Android settings.';
+      this.addLog('error', this.lastError);
+      this.notifyListeners();
+      return false;
+    }
+
+    this.lastError = null;
     const ok = SyncBle.startAdvertising(this.localDevice.deviceId, this.localDevice.deviceName);
     if (ok) {
       this.isAdvertising = true;
       this.addLog('info', 'Started BLE advertising');
-      this.notifyListeners();
+    } else {
+      this.lastError = 'Failed to start BLE advertising. Check Diagnostics logs.';
     }
+    this.notifyListeners();
     return ok;
   }
 
@@ -405,13 +488,29 @@ export class BleService {
     this.notifyListeners();
   }
 
-  public startScanning(): boolean {
+  public async startScanning(): Promise<boolean> {
+    this.refreshBluetoothStatus();
+    if (!this.hasRequiredPermissions()) {
+      const granted = await this.requestPermissions();
+      if (!granted) return false;
+    }
+
+    if (!this.bluetoothEnabled) {
+      this.lastError = 'Bluetooth is turned OFF. Please enable Bluetooth in Android settings.';
+      this.addLog('error', this.lastError);
+      this.notifyListeners();
+      return false;
+    }
+
+    this.lastError = null;
     const ok = SyncBle.startScanning();
     if (ok) {
       this.isScanning = true;
       this.addLog('info', 'Started BLE scanning');
-      this.notifyListeners();
+    } else {
+      this.lastError = 'Failed to start BLE scanning. Check Diagnostics logs.';
     }
+    this.notifyListeners();
     return ok;
   }
 
@@ -423,6 +522,7 @@ export class BleService {
   }
 
   public connect(address: string): boolean {
+    this.lastError = null;
     this.addLog('info', `Connecting to ${address}...`);
     return SyncBle.connect(address);
   }
@@ -462,6 +562,8 @@ export class BleService {
       isAdvertising: this.isAdvertising,
       isScanning: this.isScanning,
       permissions: this.permissions,
+      hasRequiredPermissions: this.hasRequiredPermissions(),
+      lastError: this.lastError,
       localDevice: this.localDevice,
       connectedPeerCount: this.connectedPeers.size,
       discoveredCount: this.discoveredDevices.size,

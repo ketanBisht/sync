@@ -1,12 +1,15 @@
 package dev.sync.ble
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.*
 import android.bluetooth.le.*
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
+import androidx.core.content.ContextCompat
 import kotlinx.coroutines.CompletableDeferred
 import kotlinx.coroutines.withTimeoutOrNull
 import java.nio.charset.StandardCharsets
@@ -187,7 +190,33 @@ class BleClientManager(
         }
     }
 
+    private fun hasPermission(permission: String): Boolean {
+        return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun hasScanPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            hasPermission(Manifest.permission.BLUETOOTH_SCAN)
+        } else {
+            hasPermission(Manifest.permission.ACCESS_FINE_LOCATION) ||
+                hasPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+        }
+    }
+
+    private fun hasConnectPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            hasPermission(Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            true
+        }
+    }
+
     fun startScanning(): Boolean {
+        if (!hasScanPermission()) {
+            onLog("error", "Cannot scan: BLUETOOTH_SCAN / Location permission not granted")
+            return false
+        }
+
         val adapter = bluetoothManager.adapter
         if (adapter == null || !adapter.isEnabled) {
             onLog("error", "Cannot scan: Bluetooth adapter is disabled or unavailable")
@@ -215,7 +244,12 @@ class BleClientManager(
                 result ?: return
                 val device = result.device
                 val scanRecord = result.scanRecord
-                val name = device.name ?: scanRecord?.deviceName ?: "SYNC Node"
+                val safeDeviceName = try {
+                    if (hasConnectPermission()) device.name else null
+                } catch (_: SecurityException) {
+                    null
+                }
+                val name = safeDeviceName ?: scanRecord?.deviceName ?: "SYNC Node"
                 val address = device.address
                 val rssi = result.rssi
 
@@ -250,11 +284,21 @@ class BleClientManager(
             }
         }
 
-        scanCallback = callback
-        scanner?.startScan(filters, settings, callback)
-        isScanning = true
-        onLog("info", "Started BLE scanning for SYNC service (${BleConstants.SERVICE_UUID})")
-        return true
+        return try {
+            scanCallback = callback
+            scanner?.startScan(filters, settings, callback)
+            isScanning = true
+            onLog("info", "Started BLE scanning for SYNC service (${BleConstants.SERVICE_UUID})")
+            true
+        } catch (e: SecurityException) {
+            isScanning = false
+            onLog("error", "SecurityException starting scan: ${e.message}")
+            false
+        } catch (e: Exception) {
+            isScanning = false
+            onLog("error", "Exception starting scan: ${e.message}")
+            false
+        }
     }
 
     fun stopScanning() {
@@ -271,6 +315,11 @@ class BleClientManager(
     }
 
     fun connect(deviceAddress: String): Boolean {
+        if (!hasConnectPermission()) {
+            onLog("error", "Cannot connect: BLUETOOTH_CONNECT permission not granted")
+            return false
+        }
+
         val adapter = bluetoothManager.adapter ?: return false
         if (!adapter.isEnabled) {
             onLog("error", "Cannot connect: Bluetooth is disabled")
@@ -287,10 +336,20 @@ class BleClientManager(
         onLog("info", "Initiating GATT connection to $deviceAddress...")
         onConnectionChanged(deviceAddress, "connecting")
 
-        val gatt = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-            device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
-        } else {
-            device.connectGatt(context, false, gattCallback)
+        val gatt = try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                device.connectGatt(context, false, gattCallback, BluetoothDevice.TRANSPORT_LE)
+            } else {
+                device.connectGatt(context, false, gattCallback)
+            }
+        } catch (e: SecurityException) {
+            onLog("error", "SecurityException connecting to $deviceAddress: ${e.message}")
+            onConnectionChanged(deviceAddress, "disconnected")
+            return false
+        } catch (e: Exception) {
+            onLog("error", "Exception connecting to $deviceAddress: ${e.message}")
+            onConnectionChanged(deviceAddress, "disconnected")
+            return false
         }
 
         if (gatt == null) {

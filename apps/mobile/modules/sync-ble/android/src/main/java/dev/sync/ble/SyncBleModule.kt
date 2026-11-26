@@ -231,6 +231,11 @@ class SyncBleModule : Module() {
             serverManager?.sendReceipt(deviceAddress, receiptJson) ?: false
         }
 
+        Function("sendChunkNotification") { deviceAddress: String, chunkJson: String ->
+            ensureManagersInitialized()
+            serverManager?.sendChunk(deviceAddress, chunkJson) ?: false
+        }
+
         Function("getNegotiatedMtu") { deviceAddress: String ->
             clientManager?.deviceMtus?.get(deviceAddress) ?: 23
         }

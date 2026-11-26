@@ -9,6 +9,7 @@ import {
   useColorScheme,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
+import { router } from 'expo-router';
 import { Colors } from '@/constants/theme';
 import {
   bleService,
@@ -25,6 +26,10 @@ export default function DiscoveryScreen() {
   const [peers, setPeers] = useState<PeerConnectionInfo[]>(bleService.getConnectedPeers());
 
   useEffect(() => {
+    bleService.refreshBluetoothStatus();
+    if (!bleService.hasRequiredPermissions()) {
+      void bleService.requestPermissions();
+    }
     const unsubscribe = bleService.subscribe(() => {
       setStatus(bleService.getStatus());
       setDevices(bleService.getDiscoveredDevices());
@@ -36,19 +41,19 @@ export default function DiscoveryScreen() {
   const connectedMap = new Map<string, PeerConnectionInfo>();
   peers.forEach((p) => connectedMap.set(p.address, p));
 
-  const handleToggleAdvertise = () => {
+  const handleToggleAdvertise = async () => {
     if (status.isAdvertising) {
       bleService.stopAdvertising();
     } else {
-      bleService.startAdvertising();
+      await bleService.startAdvertising();
     }
   };
 
-  const handleToggleScan = () => {
+  const handleToggleScan = async () => {
     if (status.isScanning) {
       bleService.stopScanning();
     } else {
-      bleService.startScanning();
+      await bleService.startScanning();
     }
   };
 
@@ -95,7 +100,12 @@ export default function DiscoveryScreen() {
 
         {/* Radio & Permissions Status */}
         <View style={[styles.card, { backgroundColor: colors.backgroundElement }]}>
-          <Text style={[styles.cardTitle, { color: colors.text }]}>BLE Radio & Permissions</Text>
+          <View style={styles.cardHeaderRow}>
+            <Text style={[styles.cardTitle, { color: colors.text }]}>BLE Radio & Permissions</Text>
+            <TouchableOpacity onPress={() => bleService.refreshBluetoothStatus()}>
+              <Text style={[styles.refreshLink, { color: colors.tint }]}>Refresh</Text>
+            </TouchableOpacity>
+          </View>
           <View style={styles.infoRow}>
             <Text style={[styles.label, { color: colors.textSecondary }]}>Bluetooth Hardware:</Text>
             <Text style={[styles.badge, status.bluetoothEnabled ? styles.badgeSuccess : styles.badgeWarn]}>
@@ -120,7 +130,21 @@ export default function DiscoveryScreen() {
               {status.permissions.bluetoothConnect !== false ? 'GRANTED' : 'DENIED'}
             </Text>
           </View>
+
+          {!status.hasRequiredPermissions && (
+            <TouchableOpacity
+              style={styles.grantBtn}
+              onPress={() => void bleService.requestPermissions()}>
+              <Text style={styles.grantBtnText}>Grant Bluetooth Permissions</Text>
+            </TouchableOpacity>
+          )}
         </View>
+
+        {status.lastError && (
+          <View style={styles.errorBanner}>
+            <Text style={styles.errorBannerText}>{status.lastError}</Text>
+          </View>
+        )}
 
         {/* Dual-Role Control Actions */}
         <View style={styles.controlsRow}>
@@ -152,6 +176,30 @@ export default function DiscoveryScreen() {
             </Text>
           </TouchableOpacity>
         </View>
+
+        {/* Connected Peers (Server & Client) */}
+        {peers.length > 0 && (
+          <View style={[styles.card, { backgroundColor: colors.backgroundElement, borderColor: '#27ae60', borderWidth: 1 }]}>
+            <View style={styles.cardHeaderRow}>
+              <Text style={[styles.cardTitle, { color: colors.text }]}>
+                Active Connections ({peers.length})
+              </Text>
+              <TouchableOpacity
+                style={styles.msgQuickBtn}
+                onPress={() => router.push('/messages' as any)}>
+                <Text style={styles.msgQuickBtnText}>Send Message →</Text>
+              </TouchableOpacity>
+            </View>
+            {peers.map((peer) => (
+              <View key={`${peer.role}-${peer.address}`} style={styles.infoRow}>
+                <Text style={[styles.value, { color: colors.text }]}>
+                  {peer.address} ({peer.role.toUpperCase()})
+                </Text>
+                <Text style={styles.connectedBadge}>MTU {peer.mtu}</Text>
+              </View>
+            ))}
+          </View>
+        )}
 
         {/* Discovered Devices List */}
         <View style={styles.sectionHeader}>
@@ -387,6 +435,50 @@ const styles = StyleSheet.create({
     backgroundColor: '#c0392b',
   },
   connectBtnText: {
+    color: '#ffffff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  cardHeaderRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  refreshLink: {
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  grantBtn: {
+    marginTop: 6,
+    backgroundColor: '#e67e22',
+    paddingVertical: 10,
+    borderRadius: 8,
+    alignItems: 'center',
+  },
+  grantBtnText: {
+    color: '#ffffff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  errorBanner: {
+    backgroundColor: '#fdecea',
+    borderColor: '#e74c3c',
+    borderWidth: 1,
+    borderRadius: 10,
+    padding: 12,
+  },
+  errorBannerText: {
+    color: '#c0392b',
+    fontSize: 13,
+    fontWeight: '600',
+  },
+  msgQuickBtn: {
+    backgroundColor: '#27ae60',
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 6,
+  },
+  msgQuickBtnText: {
     color: '#ffffff',
     fontSize: 12,
     fontWeight: '700',

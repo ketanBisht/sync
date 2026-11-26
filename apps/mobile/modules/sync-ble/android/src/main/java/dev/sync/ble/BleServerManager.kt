@@ -1,12 +1,15 @@
 package dev.sync.ble
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.bluetooth.*
 import android.bluetooth.le.*
 import android.content.Context
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.ParcelUuid
 import android.util.Log
+import androidx.core.content.ContextCompat
 import java.nio.charset.StandardCharsets
 import java.util.UUID
 import java.util.concurrent.ConcurrentHashMap
@@ -124,9 +127,34 @@ class BleServerManager(
         }
     }
 
+    private fun hasPermission(permission: String): Boolean {
+        return ContextCompat.checkSelfPermission(context, permission) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private fun hasConnectPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            hasPermission(Manifest.permission.BLUETOOTH_CONNECT)
+        } else {
+            true
+        }
+    }
+
+    private fun hasAdvertisePermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            hasPermission(Manifest.permission.BLUETOOTH_ADVERTISE)
+        } else {
+            true
+        }
+    }
+
     fun startServer(): Boolean {
         if (gattServer != null) {
             return true
+        }
+
+        if (!hasConnectPermission()) {
+            onLog("error", "Cannot start GATT server: BLUETOOTH_CONNECT permission not granted")
+            return false
         }
 
         try {
@@ -217,6 +245,13 @@ class BleServerManager(
     }
 
     fun startAdvertising(deviceId: String, deviceName: String): Boolean {
+        if (!hasAdvertisePermission() || !hasConnectPermission()) {
+            val msg = "Missing BLUETOOTH_ADVERTISE or BLUETOOTH_CONNECT permission"
+            onLog("error", msg)
+            onAdvertisingStateChanged(false, msg)
+            return false
+        }
+
         val adapter = bluetoothManager.adapter
         if (adapter == null || !adapter.isEnabled) {
             onLog("error", "Cannot advertise: Bluetooth adapter is disabled or unavailable")
@@ -253,15 +288,17 @@ class BleServerManager(
         val idPrefix = deviceId.replace("-", "").take(8).toByteArray(StandardCharsets.UTF_8)
         val mfrPayload = byteArrayOf(BleConstants.PROTOCOL_VERSION.toByte()) + idPrefix
 
+        // Keep primary advertise packet strictly <= 31 bytes (Flags 3B + 128-bit UUID 18B = 21B)
         val data = AdvertiseData.Builder()
-            .setIncludeDeviceName(false) // Keep under 31 bytes
+            .setIncludeDeviceName(false)
             .setIncludeTxPowerLevel(false)
             .addServiceUuid(ParcelUuid(BleConstants.SERVICE_UUID))
-            .addManufacturerData(BleConstants.MANUFACTURER_ID, mfrPayload)
             .build()
 
+        // Put manufacturer data in scanResponse (13 bytes <= 31 bytes)
         val scanResponse = AdvertiseData.Builder()
-            .setIncludeDeviceName(true)
+            .setIncludeDeviceName(false)
+            .addManufacturerData(BleConstants.MANUFACTURER_ID, mfrPayload)
             .build()
 
         val callback = object : AdvertiseCallback() {
@@ -286,9 +323,21 @@ class BleServerManager(
             }
         }
 
-        advertiseCallback = callback
-        advertiser?.startAdvertising(settings, data, scanResponse, callback)
-        return true
+        return try {
+            advertiseCallback = callback
+            advertiser?.startAdvertising(settings, data, scanResponse, callback)
+            true
+        } catch (e: SecurityException) {
+            isAdvertising = false
+            onLog("error", "SecurityException starting advertising: ${e.message}")
+            onAdvertisingStateChanged(false, "Bluetooth permission denied")
+            false
+        } catch (e: Exception) {
+            isAdvertising = false
+            onLog("error", "Exception starting advertising: ${e.message}")
+            onAdvertisingStateChanged(false, e.message ?: "Advertising failed")
+            false
+        }
     }
 
     fun stopAdvertising() {
@@ -330,6 +379,10 @@ class BleServerManager(
 
     fun sendReceipt(deviceAddress: String, receiptJson: String): Boolean {
         return sendNotification(deviceAddress, BleConstants.CHAR_RECEIPT_UUID, receiptJson)
+    }
+
+    fun sendChunk(deviceAddress: String, chunkJson: String): Boolean {
+        return sendNotification(deviceAddress, BleConstants.CHAR_MESSAGE_TRANSFER_UUID, chunkJson)
     }
 
     fun stopServer() {

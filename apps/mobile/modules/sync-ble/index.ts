@@ -80,6 +80,7 @@ export interface SyncBleNativeModule {
   writeChunk(deviceAddress: string, chunkJson: string): Promise<boolean>;
   writeReceipt(deviceAddress: string, receiptJson: string): Promise<boolean>;
   sendReceiptNotification(deviceAddress: string, receiptJson: string): boolean;
+  sendChunkNotification(deviceAddress: string, chunkJson: string): boolean;
   getNegotiatedMtu(deviceAddress: string): number;
 }
 
@@ -133,6 +134,9 @@ class FallbackSyncBleModule implements SyncBleNativeModule {
     return false;
   }
   sendReceiptNotification(_deviceAddress: string, _receiptJson: string): boolean {
+    return false;
+  }
+  sendChunkNotification(_deviceAddress: string, _chunkJson: string): boolean {
     return false;
   }
   getNegotiatedMtu(_deviceAddress: string): number {
